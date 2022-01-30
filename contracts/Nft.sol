@@ -4,6 +4,9 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "./Lib.sol";
 
+error NoTokenUriAvailable();
+error NotFactory();
+
 contract Nft is ERC721 {
     bytes32 immutable public commitHash;
     address immutable public prevAddr;
@@ -27,8 +30,13 @@ contract Nft is ERC721 {
         _mint(mintTo, uint256(_commitHash));
     }
 
+    function tokenURI(uint256 /* tokenId */) public view virtual override returns (string memory) {
+        // TODO: implement EIP-3668 CCIP Read Secure offchain data retrieval
+        revert NoTokenUriAvailable();
+    }
+
     function burn(uint256 tokenId) external {
-        require(msg.sender == factory, "NOT_FACTORY");
+        if(msg.sender != factory) revert NotFactory();
         _burn(tokenId);
     }
 }

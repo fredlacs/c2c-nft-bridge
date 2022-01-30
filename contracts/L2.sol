@@ -8,12 +8,16 @@ import "./Nft.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 
+error FailedCall();
+error IncorrectCommitInformation();
+error NotNftHolder(Nft nft);
+
 contract L2 is Context {
     address immutable public l1Counterpart;
     bytes32 immutable public nftBytecodeHash;
     uint256 immutable private chainId;
 
-    // nonce[commit.fromChainId][commit.token][commit.tokenId]
+    // fromChainId => commit.token => commit.tokenId
     mapping(uint256 => mapping(IERC721 => mapping(uint256 => uint256))) public nonce;
 
     event C2CMint(
@@ -41,9 +45,11 @@ contract L2 is Context {
          *  The other field should be verified offchain whenever you interact with this NFT
          *  They are also lazily verified during a withdrawal
          */
-        require(commit.minter == _msgSender(), "NOT_MINTER");
-        require(commit.toChainId == chainId, "WRONG_DEST");
-        require(commit.nonce > nonce[commit.fromChainId][commit.token][commit.tokenId], "NEED_NEW_NONCE");
+        if(
+            commit.minter != _msgSender() ||
+            commit.toChainId != chainId ||
+            commit.nonce < nonce[commit.fromChainId][commit.token][commit.tokenId]
+        ) revert IncorrectCommitInformation();
         
         // the commit hash can be stored explicitly or by being used as a create2 salt
         // tradeoff between calldata vs storage here, storage seems like a better call
@@ -53,7 +59,7 @@ contract L2 is Context {
         // TODO: mint in 1155 instead of a new deploy each time
         new Nft{salt: commitHash}(commitHash, address(commit.token), commit.fromChainId, mintTo);
 
-        nonce[commit.fromChainId][commit.token][commit.tokenId] = commit.nonce;
+        nonce[commit.fromChainId][commit.token][commit.tokenId] = commit.nonce + 1;
         
         emit C2CMint(
             address(commit.token),
@@ -77,12 +83,10 @@ contract L2 is Context {
         address claimTo
     ) external {
         bytes32 commitHash = Lib.getCommitHash(commit);
-        // TODO: can we optimise this validation to reduce calldata?
         Nft nft = Nft(getL2Addr(commitHash));
-        require(nft.ownerOf(uint256(commitHash)) == _msgSender(), "NOT_NFT_HOLDER");
         
-        // TODO: instead of burn, check if escrowed? this makes it possible to do O(1) settlement
-        // TODO: do we need a nonce check here or only on receiver?
+        // TODO: do we need a nonce check here or only on receiver? nonce management can't take minter into account
+        if(nft.ownerOf(uint256(commitHash)) != _msgSender()) revert NotNftHolder(nft);
         nft.burn(uint256(commitHash));
 
         bytes memory dataForCall = abi.encodeWithSelector(
@@ -95,6 +99,6 @@ contract L2 is Context {
 
     function sendToL1Counterpart(bytes memory dataForCall) internal virtual {
         (bool res, ) = l1Counterpart.call(dataForCall);
-        require(res, "FAIL_SEND_TO_L1");
+        if(!res) revert FailedCall();
     }
 }

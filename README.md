@@ -1,46 +1,30 @@
-# Advanced Sample Hardhat Project
+# C2C NFT Bridge
 
-This project demonstrates an advanced Hardhat use case, integrating other tools commonly used alongside Hardhat in the ecosystem.
+```
+Create2 Counterfactual NFT Bridge
 
-The project comes with a sample contract, a test for that contract, a sample script that deploys that contract, and an example of a task implementation, which simply lists the available accounts. It also comes with a variety of other tools, preconfigured to work with the project code.
-
-Try running some of the following tasks:
-
-```shell
-npx hardhat accounts
-npx hardhat compile
-npx hardhat clean
-npx hardhat test
-npx hardhat node
-npx hardhat help
-REPORT_GAS=true npx hardhat test
-npx hardhat coverage
-npx hardhat run scripts/deploy.ts
-TS_NODE_FILES=true npx ts-node scripts/deploy.ts
-npx eslint '**/*.{js,ts}'
-npx eslint '**/*.{js,ts}' --fix
-npx prettier '**/*.{json,sol,md}' --check
-npx prettier '**/*.{json,sol,md}' --write
-npx solhint 'contracts/**/*.sol'
-npx solhint 'contracts/**/*.sol' --fix
+the idea here is that you can get a NFT bridge that doesn't need to send a L1 to L2 tx. you instead make one L1 tx and one L2 tx. 
+For that the user would transfer their nft token to a predetermined address in the L1. as minimal as L1 interactions can be.
+Then on the L2 they would deploy a nft through a trusted factory contract. Deploy would be a NFT that commits to a user deploying a certain token address and id.
+For a withdrawal the trusted factory burns (or escrows somewhere) the L2 token. When this happens, the bridge then sends a L2 to L1 tx to a trusted factory in the L1. Now here is the trick of the predetermined address: it can be the result of a create2 from the L1 factory. you can verify the original msg.sender and token info from the original commitment as a salt to the create2. So the escrow contract only gets deployed during the withdrawal so it can send back the token.
 ```
 
-# Etherscan verification
+Only requires one way communication.
+Cheapest deposits in town.
 
-To try out Etherscan verification, you first need to deploy a contract to an Ethereum network that's supported by Etherscan, such as Ropsten.
+Remaps tokenId and assumes offchain verification for validity.
+Metadata only available in origin chain.
+Allows for fast exits of NFTs
+Can support multiple domains (ie transfer from arbitrum to optimism)
 
-In this project, copy the .env.example file to a file named .env, and then edit it to fill in the details. Enter your Etherscan API key, your Ropsten node URL (eg from Alchemy), and the private key of the account which will send the deployment transaction. With a valid .env file in place, first deploy your contract:
 
-```shell
-hardhat run --network ropsten scripts/sample-script.ts
-```
-
-Then, copy the deployment address and paste it in to replace `DEPLOYED_CONTRACT_ADDRESS` in this command:
-
-```shell
-npx hardhat verify --network ropsten DEPLOYED_CONTRACT_ADDRESS "Hello, Hardhat!"
-```
-
-# Performance optimizations
-
-For faster runs of your tests and scripts, consider skipping ts-node's type checking by setting the environment variable `TS_NODE_TRANSPILE_ONLY` to `1` in hardhat's environment. For more details see [the documentation](https://hardhat.org/guides/typescript.html#performance-optimizations).
+Open questions:
+ - Can nonce management be built in a way to allow domains to settle in O(1)?
+ - How to manage airdrops in previous wrappers? You can just bridge them over too
+ - Using create3 on escrow creation would allow for user defined logic when releasing escrow. Is that safe? Might need to add an explicit `token.ownerOf` check
+ - Is there a better way of mapping token IDs?
+ - Is there a more calldata efficient way of verifying during withdrawal time?
+ - Is the self destruct at the end of the escrow release safe?
+ - Handle chainId changed if network gets forked?
+ - Is there a weird withdrawal race condition? I don't think so.
+ - Can we allow withdrawals to optimise for either calldata/storage? Allow users to interact with both modes
