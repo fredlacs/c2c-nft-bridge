@@ -58,7 +58,7 @@ contract Minter is Context {
         
         // TODO: mint in 1155 instead of a new deploy each time
         new Nft{salt: commitHash}(commitHash, address(commit.token), commit.fromChainId, mintTo);
-
+        // yes, I know this nonce system is broken. this is a PoC
         nonce[commit.fromChainId][commit.token][commit.tokenId] = commit.nonce + 1;
         
         emit C2CMint(

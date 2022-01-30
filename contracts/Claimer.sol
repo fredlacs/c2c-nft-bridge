@@ -40,6 +40,7 @@ contract Claimer is IClaimer {
         if(!calledByMinter()) revert NotMinter();
         if(commit.fromChainId != chainId) revert IncorrectChainId();
         if(
+            // yes, I know this nonce system is broken. this is a PoC
             commit.nonce < nonce[commit.toChainId][commit.token][commit.tokenId]
         ) revert OldNonce();
 
