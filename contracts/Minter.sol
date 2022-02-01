@@ -12,6 +12,7 @@ error FailedCall();
 error IncorrectCommitInformation();
 error NotNftHolder(Nft nft);
 
+/// @dev Minter is intended to be deployed to L2 chain
 contract Minter is Context {
     address immutable public claimer;
     bytes32 immutable public nftBytecodeHash;
@@ -38,9 +39,9 @@ contract Minter is Context {
         address mintTo
     ) external {
         /*
-         *  During the mint we verify half of the commitment
-         *  The other field should be verified offchain whenever you interact with this NFT
-         *  They are also lazily verified during a withdrawal
+         *  Different parts of the commitment are checked in different moments
+         *  (minterUser, toChainId) are verified now during the mint
+         *  (token, tokenId, fromChainId, nonce) are verified during the withdrawal
          */
         if(
             commit.minterUser != _msgSender() ||
@@ -90,6 +91,7 @@ contract Minter is Context {
         sendCallToClaimer(dataForCall);
     }
 
+    /// @dev override this method in a subclass to implement L2 to L1 message
     function sendCallToClaimer(bytes memory dataForCall) internal virtual {
         (bool res, ) = claimer.call(dataForCall);
         if(!res) revert FailedCall();
