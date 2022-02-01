@@ -9,10 +9,4 @@ library Lib {
             commit.token, commit.tokenId, commit.minterUser, commit.fromChainId, commit.toChainId, commit.nonce
         ));
     }
-
-    function chainId() internal view returns (uint256 _chainId) {
-        assembly {
-            _chainId := chainid()
-        }
-    }
 }

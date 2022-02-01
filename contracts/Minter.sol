@@ -17,9 +17,6 @@ contract Minter is Context {
     bytes32 immutable public nftBytecodeHash;
     uint256 immutable private chainId;
 
-    // fromChainId => commit.token => commit.tokenId
-    mapping(uint256 => mapping(IERC721 => mapping(uint256 => uint256))) public nonce;
-
     event C2CMint(
         address indexed prevAddr,
         uint256 indexed prevId,
@@ -33,7 +30,7 @@ contract Minter is Context {
     constructor(address _claimer) {
         claimer = _claimer;
         nftBytecodeHash = keccak256(type(Nft).creationCode);
-        chainId = Lib.chainId();
+        chainId = block.chainid;
     }
     
     function mint(
@@ -47,8 +44,7 @@ contract Minter is Context {
          */
         if(
             commit.minterUser != _msgSender() ||
-            commit.toChainId != chainId ||
-            commit.nonce < nonce[commit.fromChainId][commit.token][commit.tokenId]
+            commit.toChainId != chainId
         ) revert IncorrectCommitInformation();
         
         // the commit hash can be stored explicitly or by being used as a create2 salt
@@ -58,8 +54,6 @@ contract Minter is Context {
         
         // TODO: mint in 1155 instead of a new deploy each time
         new Nft{salt: commitHash}(commitHash, address(commit.token), commit.fromChainId, mintTo);
-        // yes, I know this nonce system is broken. this is a PoC
-        nonce[commit.fromChainId][commit.token][commit.tokenId] = commit.nonce + 1;
         
         emit C2CMint(
             address(commit.token),
@@ -85,7 +79,6 @@ contract Minter is Context {
         bytes32 commitHash = Lib.getCommitHash(commit);
         Nft nft = Nft(getNftAddress(commitHash));
         
-        // TODO: do we need a nonce check here or only on receiver? nonce management can't take minter into account
         if(nft.ownerOf(uint256(commitHash)) != _msgSender()) revert NotNftHolder(nft);
         nft.burn(uint256(commitHash));
 
